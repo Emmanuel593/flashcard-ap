@@ -2,79 +2,55 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenCards - Marquis Edition</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* ... (Your original CSS styles are all intact below) ... */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: var(--bg-deep, #070a13); }
-        ::-webkit-scrollbar-thumb { background: var(--border-color, #1e293b); border-radius: 99px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--primary-color, #3b82f6); box-shadow: 0 0 10px var(--primary-color, #3b82f6); }
-        :root { --bg-deep: #070a13; --bg-card: #0b0f19; --bg-input: #111827; --primary-color: #3b82f6; --primary-glow: rgba(59,130,246,0.2); --text-main: #f8fafc; --border-color: #1e293b; }
-        .theme-emerald { --bg-deep: #020604; --bg-card: #050f0a; --bg-input: #0c1f14; --primary-color: #10b981; --primary-glow: rgba(16,185,129,0.2); --text-main: #d1fae5; --border-color: #064e3b; }
-        .theme-crimson { --bg-deep: #0a0204; --bg-card: #14050a; --bg-input: #1f0c12; --primary-color: #f43f5e; --primary-glow: rgba(244,63,94,0.2); --text-main: #ffe4e6; --border-color: #4c0519; }
-        .premium-card { animation: pulseGlow 6s infinite ease-in-out; }
-        @keyframes pulseGlow { 0%, 100% { border-color: var(--border-color); box-shadow: 0 4px 20px rgba(0,0,0,0.4); } 50% { border-color: var(--primary-color); box-shadow: 0 4px 25px var(--primary-glow); } }
+        /* Keep your existing premium CSS here */
+        :root { --bg-deep: #070a13; --bg-card: #0b0f19; --primary-color: #3b82f6; --text-main: #f8fafc; --border-color: #1e293b; }
+        body { background: var(--bg-deep); color: var(--text-main); font-family: sans-serif; margin: 0; }
     </style>
 </head>
-<body id="masterBody" style="margin:0; background:var(--bg-deep); color:var(--text-main); font-family:sans-serif; height:100vh; display:flex; flex-direction:column; overflow:hidden;">
+<body id="masterBody">
 
     <script type="module">
         import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-        // --- CLOUD CONFIG ---
-        const SUPABASE_URL = "https://olumrzkpqmhypagkhvmy.supabase.co";
-        const SUPABASE_ANON_KEY = "PASTE_YOUR_ANON_KEY_HERE";
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // 1. CONFIGURATION
+        const SUPABASE_URL = 'https://olumrzkpqmhypagkhvmy.supabase.co';
+        // PASTE YOUR SB_PUBLISHABLE_ KEY HERE:
+        const SUPABASE_KEY = 'sb_publishable_qjpgobc7wwJOiH_asyEfUg_1P-Q5FS2'; 
 
-        // --- RENDER ENGINE ---
-        // (I have kept your original layout logic below)
-        document.body.innerHTML = `
-            <div style="display:flex; height:100vh; overflow:hidden;">
-                <div id="sidebarPanel" style="width:320px; background:var(--bg-card); padding:1.2rem; border-right:1px solid var(--border-color);">
-                    <h2 style="color:#3b82f6;">OpenCards</h2>
-                    <button id="logoutBtn" style="color:#ef4444; border:1px solid #ef4444;">Log Out</button>
-                    <div id="decksList">Loading...</div>
-                </div>
-                <div id="workspace" style="flex:1; padding:2rem;">
-                    <div id="authContainer">
-                        <input type="email" id="emailInput" placeholder="Email">
-                        <input type="password" id="passwordInput" placeholder="Password">
-                        <button id="loginBtn">Sign In</button>
-                    </div>
-                    <div id="appScreen" style="display:none;">
-                        <h1>Welcome to Marquis Edition</h1>
-                    </div>
-                </div>
-            </div>
-        `;
+        const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // --- CLOUD INITIALIZATION ---
-        async function initAuth() {
+        // 2. ROUTER & UI LOGIC
+        async function initApp() {
+            const authContainer = document.getElementById('authContainer');
+            const appScreen = document.getElementById('appScreen');
+            const settingsDashboard = document.getElementById('viewSystemSettingsDashboard');
+
             const { data: { session } } = await supabase.auth.getSession();
+
             if (session) {
-                document.getElementById('authContainer').style.display = 'none';
-                document.getElementById('appScreen').style.display = 'block';
-                // Load your folders/decks here
+                // LOGGED IN
+                authContainer.style.display = 'none';
+                settingsDashboard.style.display = 'none';
+                appScreen.style.display = 'flex';
+                console.log("App ready. Cloud synced.");
+            } else {
+                // NOT LOGGED IN
+                authContainer.style.display = 'flex';
+                appScreen.style.display = 'none';
+                settingsDashboard.style.display = 'none';
             }
         }
 
-        // --- EVENT HANDLERS ---
-        document.getElementById('loginBtn').addEventListener('click', async () => {
-            const email = document.getElementById('emailInput').value;
-            const pass = document.getElementById('passwordInput').value;
-            const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
-            if (error) alert(error.message);
-            else location.reload();
-        });
-
-        document.getElementById('logoutBtn').addEventListener('click', async () => {
-            await supabase.auth.signOut();
-            location.reload();
-        });
-
-        initAuth();
+        // 3. INITIALIZE
+        initApp();
     </script>
+
+    <div id="authContainer">...</div>
+    <div id="appScreen" style="display:none;">...</div>
+    <div id="viewSystemSettingsDashboard" style="display:none;">...</div>
+
 </body>
 </html>
