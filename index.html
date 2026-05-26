@@ -4,88 +4,53 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenCards - Marquis Edition</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* Premium Core Scrollbars */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: var(--bg-deep, #070a13); }
         ::-webkit-scrollbar-thumb { background: var(--border-color, #1e293b); border-radius: 99px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--primary-color, #3b82f6); box-shadow: 0 0 10px var(--primary-color, #3b82f6); }
-        
-        /* Premium Visual Themes */
-        :root {
-            --bg-deep: #070a13; --bg-card: #0b0f19; --bg-input: #111827;
-            --primary-color: #3b82f6; --primary-glow: rgba(59,130,246,0.2);
-            --text-main: #f8fafc; --border-color: #1e293b;
-        }
-        .theme-emerald {
-            --bg-deep: #020604; --bg-card: #050f0a; --bg-input: #0c1f14;
-            --primary-color: #10b981; --primary-glow: rgba(16,185,129,0.2);
-            --text-main: #d1fae5; --border-color: #064e3b;
-        }
-        .theme-crimson {
-            --bg-deep: #0a0204; --bg-card: #14050a; --bg-input: #1f0c12;
-            --primary-color: #f43f5e; --primary-glow: rgba(244,63,94,0.2);
-            --text-main: #ffe4e6; --border-color: #4c0519;
-        }
-
+        :root { --bg-deep: #070a13; --bg-card: #0b0f19; --bg-input: #111827; --primary-color: #3b82f6; --primary-glow: rgba(59,130,246,0.2); --text-main: #f8fafc; --border-color: #1e293b; }
+        .theme-emerald { --bg-deep: #020604; --bg-card: #050f0a; --bg-input: #0c1f14; --primary-color: #10b981; --primary-glow: rgba(16,185,129,0.2); --text-main: #d1fae5; --border-color: #064e3b; }
+        .theme-crimson { --bg-deep: #0a0204; --bg-card: #14050a; --bg-input: #1f0c12; --primary-color: #f43f5e; --primary-glow: rgba(244,63,94,0.2); --text-main: #ffe4e6; --border-color: #4c0519; }
         .premium-card { animation: pulseGlow 6s infinite ease-in-out; }
-        @keyframes pulseGlow {
-            0%, 100% { border-color: var(--border-color); box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
-            50% { border-color: var(--primary-color); box-shadow: 0 4px 25px var(--primary-glow); }
-        }
+        @keyframes pulseGlow { 0%, 100% { border-color: var(--border-color); box-shadow: 0 4px 20px rgba(0,0,0,0.4); } 50% { border-color: var(--primary-color); box-shadow: 0 4px 25px var(--primary-glow); } }
         .match-btn-selected { border-color: var(--primary-color) !important; background: var(--primary-glow) !important; box-shadow: 0 0 12px var(--primary-color); }
     </style>
 </head>
-<body id="masterBody" style="margin:0; background:var(--bg-deep); color:var(--text-main); font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; height:100vh; max-height:100vh; display:flex; flex-direction:column; -webkit-font-smoothing:antialiased; overflow:hidden; transition: background 0.3s, color 0.3s;">
+<body id="masterBody" style="margin:0; background:var(--bg-deep); color:var(--text-main); font-family:sans-serif; height:100vh; display:flex; flex-direction:column; overflow:hidden;">
+
+    <div id="app">Loading Cloud Workspace...</div>
 
     <script type="module">
-    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+        const supabase = createClient('YOUR_SUPABASE_URL', 'YOUR_SUPABASE_ANON_KEY');
 
-    // INITIAL STATE RECOVERY FROM LOCAL STORAGE
-    const cachedTheme = localStorage.getItem('marquis-theme') || 'default';
-    const cachedMute = localStorage.getItem('marquis-mute') === 'true';
-    const cachedAudioSFX = localStorage.getItem('marquis-sfx') !== 'false';
-    const cachedAutoFlip = localStorage.getItem('marquis-autoflip') !== 'false';
-    let cachedSettingsCollapse = localStorage.getItem('marquis-collapse-settings') === 'true';
-    let cachedFoldersCollapse = localStorage.getItem('marquis-collapse-folders') === 'true';
-
-    // CORE LAYOUT BUILD ENGINE
-    document.body.innerHTML = `
-      <div style="display: flex; flex: 1; min-height: 0; height: 100vh; overflow:hidden;">
-        ...
-        <div id="viewSystemSettingsDashboard" style="width:100%; display:none; flex-direction:column; gap:2rem; background:var(--bg-card); border:2px solid #ef4444; padding:3rem; border-radius:24px; box-sizing:border-box; box-shadow: 0 0 40px rgba(239, 68, 68, 0.15);">
-          <div>
-            <h2 style="margin:0; font-size:2rem; font-weight:900; color:#ef4444; text-transform: uppercase;">System Settings Dashboard</h2>
-            <p style="margin:8px 0 0 0; font-size:1rem; color:#94a3b8;">Manage system-wide folder records and user authorization data keys.</p>
-          </div>
-          
-          <hr style="border:0; border-top:1px solid var(--border-color); width:100%;">
-
-          <div style="display:flex; flex-direction:column; gap:20px;">
-            <h4 style="margin:0; font-size:1.1rem; font-weight:900; color:#ef4444; display:flex; align-items:center; gap:8px;">
-              ☣️ DESTRUCTIVE ZONE
-            </h4>
-            <p style="margin:0; font-size:0.9rem; color:#64748b; line-height: 1.6;">
-              These operations will permanently erase data from the cloud. <strong>This action cannot be undone.</strong>
-            </p>
+        async function initApp() {
+            let userPrefs = { theme: 'default', mute: false, sfx: true, autoflip: true };
             
-            <div style="display:flex; flex-direction:column; gap:15px; margin-top:10px;">
-              <button id="deleteAllDecksBtn" style="background:rgba(239, 68, 68, 0.1); color:#ef4444; border:2px solid rgba(239, 68, 68, 0.6); width:100%; padding:1.5rem; border-radius:16px; font-weight:900; font-size:1.1rem; cursor:pointer; text-transform:uppercase; letter-spacing:0.1em; display:flex; justify-content:space-between; align-items:center; transition: 0.2s;">
-                <span>PURGE ALL ACTIVE FOLDERS</span>
-                <span style="background:rgba(239,68,68,0.2); padding:6px 12px; border-radius:8px; font-size:0.8rem;">WIPE ALL DATA</span>
-              </button>
-              
-              <button id="deleteAccountBtn" style="background:#ef4444; color:white; border:2px solid #ef4444; width:100%; padding:1.5rem; border-radius:16px; font-weight:900; font-size:1.1rem; cursor:pointer; text-transform:uppercase; letter-spacing:0.1em; display:flex; justify-content:space-between; align-items:center; box-shadow: 0 4px 20px rgba(239,68,68,0.3);">
-                <span>TERMINATE AUTHORIZATION KEY</span>
-                <span style="background:rgba(0,0,0,0.2); padding:6px 12px; border-radius:8px; font-size:0.8rem;">DELETE ACCOUNT</span>
-              </button>
-            </div>
-          </div>
-        </div>
-        ...
-      </div>
-    `;
-    // [REST OF SCRIPT REMAINS AS ORIGINAL]
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { data: cloud } = await supabase.from('user_settings').select('*').eq('user_id', user.id).single();
+                    if (cloud) userPrefs = cloud;
+                }
+            } catch(e) { console.warn("Cloud load failed, using defaults."); }
+
+            document.getElementById('app').innerHTML = `
+                <div style="display: flex; flex: 1; overflow:hidden;">
+                    <div id="viewSystemSettingsDashboard" style="width:100%; display:flex; flex-direction:column; gap:2rem; background:var(--bg-card); border:2px solid #ef4444; padding:3rem; border-radius:24px;">
+                        <div><h2 style="margin:0; color:#ef4444; text-transform: uppercase;">System Settings</h2></div>
+                        <div style="display:flex; flex-direction:column; gap:15px;">
+                            <button id="deleteAllDecksBtn" style="background:#1f0c12; color:#ef4444; border:2px solid #ef4444; padding:1.5rem; border-radius:16px;">PURGE ALL FOLDERS</button>
+                            <button id="deleteAccountBtn" style="background:#ef4444; color:white; border:2px solid #ef4444; padding:1.5rem; border-radius:16px;">TERMINATE ACCOUNT</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.className = `theme-${userPrefs.theme}`;
+        }
+        initApp();
     </script>
 </body>
 </html>
