@@ -5,78 +5,1235 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenCards - Marquis Edition</title>
     <style>
+        /* Premium Core Scrollbars */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: var(--bg-deep, #070a13); }
         ::-webkit-scrollbar-thumb { background: var(--border-color, #1e293b); border-radius: 99px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--primary-color, #3b82f6); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary-color, #3b82f6); box-shadow: 0 0 10px var(--primary-color, #3b82f6); }
         
+        /* Premium Visual Themes */
         :root {
             --bg-deep: #070a13; --bg-card: #0b0f19; --bg-input: #111827;
             --primary-color: #3b82f6; --primary-glow: rgba(59,130,246,0.2);
             --text-main: #f8fafc; --border-color: #1e293b;
         }
+        .theme-emerald {
+            --bg-deep: #020604; --bg-card: #050f0a; --bg-input: #0c1f14;
+            --primary-color: #10b981; --primary-glow: rgba(16,185,129,0.2);
+            --text-main: #d1fae5; --border-color: #064e3b;
+        }
+        .theme-crimson {
+            --bg-deep: #0a0204; --bg-card: #14050a; --bg-input: #1f0c12;
+            --primary-color: #f43f5e; --primary-glow: rgba(244,63,94,0.2);
+            --text-main: #ffe4e6; --border-color: #4c0519;
+        }
 
-        /* 3D FLIP ENGINE */
-        .card-wrapper { perspective: 1000px; width: 100%; max-width: 720px; }
-        .card-inner {
-            position: relative; width: 100%; height: 210px; text-align: center;
-            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-            transform-style: preserve-3d; cursor: pointer;
+        .premium-card { animation: pulseGlow 6s infinite ease-in-out; }
+        @keyframes pulseGlow {
+            0%, 100% { border-color: var(--border-color); box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+            50% { border-color: var(--primary-color); box-shadow: 0 4px 25px var(--primary-glow); }
         }
-        .card-inner.is-flipped { transform: rotateY(180deg); }
-        .card-face {
-            position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
-            display: flex; align-items: center; justify-content: center;
-            border-radius: 24px; border: 1px solid var(--border-color);
-            background: var(--bg-card); padding: 2rem; box-sizing: border-box;
-            box-shadow: 0 25px 50px rgba(0,0,0,0.65); font-size: 1.65rem; font-weight: 800;
-        }
-        .card-back { transform: rotateY(180deg); }
+        .match-btn-selected { border-color: var(--primary-color) !important; background: var(--primary-glow) !important; box-shadow: 0 0 12px var(--primary-color); }
     </style>
 </head>
-<body id="masterBody" style="margin:0; background:var(--bg-deep); color:var(--text-main); font-family:sans-serif; height:100vh; display:flex; flex-direction:column; overflow:hidden;">
+<body id="masterBody" style="margin:0; background:var(--bg-deep); color:var(--text-main); font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; height:100vh; max-height:100vh; display:flex; flex-direction:column; -webkit-font-smoothing:antialiased; overflow:hidden; transition: background 0.3s, color 0.3s;">
 
     <script type="module">
-        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
 
-        // --- CORE LAYOUT ---
-        document.body.innerHTML = `
-        <div style="flex:1; padding:2rem; display:flex; flex-direction:column; align-items:center; overflow-y:auto;">
-            <div id="appScreen" style="width:100%; max-width:720px; display:flex; flex-direction:column; align-items:center; gap:1.3rem;">
-                
-                <div class="card-wrapper">
-                    <div id="cardInner" class="card-inner">
-                        <div id="cardFront" class="card-face">Front (Click to Flip)</div>
-                        <div id="cardBack" class="card-face card-back">Back</div>
-                    </div>
-                </div>
+    // INITIAL STATE RECOVERY FROM LOCAL STORAGE
+    const cachedTheme = localStorage.getItem('marquis-theme') || 'default';
+    const cachedMute = localStorage.getItem('marquis-mute') === 'true';
+    const cachedAudioSFX = localStorage.getItem('marquis-sfx') !== 'false';
+    const cachedAutoFlip = localStorage.getItem('marquis-autoflip') !== 'false';
+    let cachedSettingsCollapse = localStorage.getItem('marquis-collapse-settings') === 'true';
+    let cachedFoldersCollapse = localStorage.getItem('marquis-collapse-folders') === 'true';
 
-                <div style="display:flex; gap:28px; align-items:center;">
-                    <button id="prevBtn" style="padding:1rem; cursor:pointer;">←</button>
-                    <span id="navTracker">0 / 0</span>
-                    <button id="nextBtn" style="padding:1rem; cursor:pointer;">→</button>
-                </div>
-            </div>
-        </div>`;
-
-        // --- FLIP LOGIC ---
-        const cardInner = document.getElementById('cardInner');
+    // CORE LAYOUT BUILD ENGINE
+    document.body.innerHTML = `
+      <div style="display: flex; flex: 1; min-height: 0; height: 100vh; overflow:hidden;">
         
-        cardInner.addEventListener('click', () => {
-            cardInner.classList.toggle('is-flipped');
-        });
+        <!-- SIDEBAR PANEL -->
+        <div id="sidebarPanel" style="display: none; width: 320px; min-width: 320px; background: var(--bg-card); padding: 1.2rem; border-right: 1px solid var(--border-color); flex-direction: column; gap: 0.9rem; box-sizing: border-box; height: 100%; overflow: hidden; z-index:10; transition: background 0.3s, border 0.3s;">
+          
+          <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="font-size:1.5rem; filter: drop-shadow(0 0 10px var(--primary-color));">📚</span>
+              <h2 style="margin:0; font-size:1.3rem; font-weight:900; background: linear-gradient(to right, #3b82f6, #a78bfa, #f43f5e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing:-0.5px;">OpenCards</h2>
+            </div>
+            <button id="logoutBtn" style="background:rgba(239, 68, 68, 0.08); color:#ef4444; border:1px solid rgba(239, 68, 68, 0.2); padding:0.4rem 0.8rem; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.75rem;">Log Out</button>
+          </div>
+          
+          <hr style="border:0; border-top:1px solid var(--border-color); margin:0;">
+          
+          <!-- COLLAPSIBLE APP SETTINGS CONTAINER -->
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;" id="toggleSettingsHeader">
+              <h3 style="margin:0; font-size:0.75rem; font-weight: 800; color:#64748b; letter-spacing: 0.1em; text-transform: uppercase;">⚙️ Quick Config</h3>
+              <span id="settingsCollapseArrow" style="font-size:0.75rem; color:#64748b; transition:transform 0.2s;">▼</span>
+            </div>
+            
+            <div id="settingsContentBox" style="background:rgba(255,255,255,0.01); border:1px solid var(--border-color); padding:0.8rem; border-radius:12px; display:flex; flex-direction:column; gap:10px; transition: max-height 0.2s ease-out, opacity 0.2s, margin 0.2s; overflow:hidden;">
+              <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.8rem;">
+                <span style="font-weight:700; color:#94a3b8;">Mute System Audio:</span>
+                <input type="checkbox" id="settingMuteToggle" style="cursor:pointer;" ${cachedMute ? 'checked' : ''}>
+              </div>
+              
+              <div id="audioSubSettings" style="display:flex; flex-direction:column; gap:8px; opacity: ${cachedMute ? '0.35' : '1'}; pointer-events: ${cachedMute ? 'none' : 'auto'};">
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.8rem;">
+                  <span style="font-weight:600; color:#94a3b8; padding-left:8px;">• Sound Effects:</span>
+                  <input type="checkbox" id="settingAudioToggle" style="cursor:pointer;" ${cachedAudioSFX ? 'checked' : ''}>
+                </div>
+              </div>
 
-        document.getElementById('nextBtn').addEventListener('click', () => {
-            cardInner.classList.remove('is-flipped');
-            // Add your deck iteration logic here
-        });
+              <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.8rem;">
+                <span style="font-weight:700; color:#94a3b8;">Reset to Term on Nav:</span>
+                <input type="checkbox" id="settingAutoFlipTerm" style="cursor:pointer;" ${cachedAutoFlip ? 'checked' : ''}>
+              </div>
 
-        document.getElementById('prevBtn').addEventListener('click', () => {
-            cardInner.classList.remove('is-flipped');
-            // Add your deck iteration logic here
-        });
+              <div style="display:flex; flex-direction:column; gap:4px; font-size:0.8rem;">
+                <span style="font-weight:700; color:#94a3b8;">Color Theme:</span>
+                <select id="settingThemeSelect" style="background:var(--bg-input); color:var(--text-main); border:1px solid var(--border-color); padding:5px; border-radius:6px; font-weight:700; outline:none; cursor:pointer; width:100%;">
+                  <option value="default" ${cachedTheme === 'default' ? 'selected' : ''}>Midnight Blue</option>
+                  <option value="emerald" ${cachedTheme === 'emerald' ? 'selected' : ''}>Deep Emerald</option>
+                  <option value="crimson" ${cachedTheme === 'crimson' ? 'selected' : ''}>Vampire Crimson</option>
+                </select>
+              </div>
+            </div>
+          </div>
 
-        console.log("Marquis Edition: 3D Flip Engine Active.");
+          <hr style="border:0; border-top:1px solid var(--border-color); margin:0;">
+          
+          <!-- CREATE FOLDER INTERFACE -->
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <h3 style="margin:0; font-size:0.7rem; font-weight: 800; color:#475569; letter-spacing: 0.1em; text-transform: uppercase;">Create Folder</h3>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="newDeckTitle" placeholder="Folder Name..." style="flex:1; padding:0.65rem 0.8rem; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-input); color:white; min-width:0; font-size:0.9rem; outline:none;">
+              <button id="createDeckBtn" style="background:var(--primary-color); color:white; border:none; padding:0.65rem 1rem; border-radius:8px; font-weight:bold; cursor:pointer; font-size:1.1rem; box-shadow: 0 4px 12px var(--primary-glow);">+</button>
+            </div>
+          </div>
+          
+          <hr style="border:0; border-top:1px solid var(--border-color); margin:0;">
+          
+          <!-- FOLDERS MANAGER -->
+          <div style="display:flex; flex-direction:column; gap:6px; flex:1; min-height:0;">
+            <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none; padding:2px 0;" id="toggleFoldersHeader">
+              <h3 style="margin:0; font-size:0.75rem; font-weight: 800; color:#64748b; letter-spacing: 0.1em; text-transform: uppercase;">Your Folders</h3>
+              <span id="collapseArrow" style="font-size:0.75rem; color:#64748b; transition:transform 0.2s;">▼</span>
+            </div>
+            
+            <input type="text" id="sidebarSearchInput" placeholder="🔍 Search folders..." style="width:100%; padding:0.5rem 0.75rem; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-input); color:white; font-size:0.85rem; box-sizing:border-box; outline:none; margin-bottom:4px;">
+
+            <div id="decksList" style="display:flex; flex-direction:column; gap:8px; overflow-y:auto; flex:1; padding-right:6px; transition: max-height 0.25s ease-out;"></div>
+            
+            <div style="display:flex; flex-direction:column; gap:6px; margin-top:auto; padding-top:8px; border-top:1px solid var(--border-color);">
+               <button id="shuffleDeckBtn" style="background:rgba(59, 130, 246, 0.1); color:var(--primary-color); border:1px solid var(--primary-color); width:100%; padding:0.6rem; border-radius:8px; font-weight:800; font-size:0.8rem; cursor:pointer; text-transform:uppercase; letter-spacing:0.05em;">🔀 Shuffle Selected Deck</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- MAIN CONTAINER WORKSPACE -->
+        <div style="flex:1; padding:2rem; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; box-sizing:border-box; height:100%; overflow-y:auto; min-width:0; background: radial-gradient(circle at top, var(--primary-glow), transparent 60%);">
+          
+          <!-- AUTH INTERFACE LAYER -->
+          <div id="authContainer" style="display: flex; flex-direction: column; gap: 1.5rem; align-items: center; width:100%; margin-top: auto; margin-bottom: auto;">
+            <div id="authScreen" style="background: var(--bg-card); padding: 2.75rem; border-radius: 24px; width: 360px; display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border-color); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7);">
+              <h2 style="margin: 0; text-align:center; font-size:1.85rem; font-weight:900; letter-spacing:-1px;">OpenCards</h2>
+              <p style="margin:0 0 16px 0; font-size:0.85rem; color:#64748b; text-align:center; font-weight:500;">Cloud Management Sign In</p>
+              <input type="email" id="emailInput" placeholder="Email Address" style="padding: 0.8rem 1rem; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-input); color: white; font-size:0.95rem; outline:none;">
+              <input type="password" id="passwordInput" placeholder="Password Access Key" style="padding: 0.8rem 1rem; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-input); color: white; font-size:0.95rem; outline:none;">
+              <button id="loginBtn" style="padding: 0.85rem; border-radius: 10px; background: #3b82f6; color: white; font-weight: 700; border: none; cursor: pointer; font-size:1rem; margin-top:6px; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);">Sign In</button>
+              <button id="signUpBtn" style="padding: 0.85rem; border-radius: 10px; background: transparent; color: #64748b; font-weight: 600; border: 1px solid var(--border-color); cursor: pointer; font-size:0.95rem;">Register New Account</button>
+            </div>
+
+            <div id="verifyEmailScreen" style="display: none; background: var(--bg-card); padding: 2.75rem; border-radius: 24px; width: 360px; flex-direction: column; align-items: center; text-align: center; gap: 18px; border: 1px solid var(--border-color); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7);">
+              <div style="font-size: 3.5rem;">✉️</div>
+              <h2 style="margin: 0; font-weight:900; color: #3b82f6; font-size:1.6rem; letter-spacing:-0.5px;">Verify Email</h2>
+              <p style="margin: 0; font-size: 0.95rem; color: #64748b; line-height:1.5;">Check your inbox for your account validation link.</p>
+              <button id="backToLoginBtn" style="width: 100%; padding: 0.8rem; border-radius: 10px; background: var(--bg-input); color: #e5e7eb; font-weight: 600; border: 1px solid var(--border-color); cursor: pointer;">← Return to Sign In</button>
+            </div>
+          </div>
+
+          <!-- MAIN APP WINDOW -->
+          <div id="appScreen" style="display: none; width:100%; max-width:720px; flex-direction: column; align-items: center; gap:1.3rem;">
+            
+            <div style="text-align:center; width:100%;">
+              <h1 id="currentDeckHeading" style="margin:0; font-size:2.4rem; font-weight:900; letter-spacing:-1px;">Select or Create a Folder</h1>
+              <div style="display:flex; justify-content:center; align-items:center; gap:12px; margin-top:8px;">
+                <p id="cardCounter" style="color:#475569; margin:0; font-weight:800; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.08em;">0 cards</p>
+                <div id="streakBadge" style="display:none; background:linear-gradient(135deg, #f59e0b, #ef4444); color:white; font-size:0.75rem; font-weight:900; padding:3px 10px; border-radius:20px; box-shadow: 0 0 15px rgba(239,68,68,0.4); text-transform:uppercase;">🔥 Streak: <span id="streakCount">0</span></div>
+              </div>
+            </div>
+
+            <!-- CORE VIEW SCREEN ROUTER BAR WITH PHYSICAL DASHBOARD SWITCH BUTTON -->
+            <div style="display:flex; background:var(--bg-card); padding:5px; border-radius:99px; border:1px solid var(--border-color); box-shadow: 0 8px 32px rgba(0,0,0,0.5); gap:2px; flex-wrap:wrap; justify-content:center;">
+              <button id="modeFlashcardsBtn" style="background:var(--primary-color); color:white; padding:0.6rem 1.2rem; border:none; border-radius:99px; cursor:pointer; font-weight:800; font-size:0.8rem; transition:0.2s;">Standard Cards</button>
+              <button id="modeQuizBtn" style="background:transparent; color:#64748b; padding:0.6rem 1.2rem; border:none; border-radius:99px; cursor:pointer; font-weight:800; font-size:0.8rem; transition:0.2s;">Chill Quiz</button>
+              <button id="modeCramBtn" style="background:transparent; color:#64748b; padding:0.6rem 1.2rem; border:none; border-radius:99px; cursor:pointer; font-weight:800; font-size:0.8rem; transition:0.2s;">Cram Mode</button>
+              <button id="modeSpeedBtn" style="background:transparent; color:#64748b; padding:0.6rem 1.2rem; border:none; border-radius:99px; cursor:pointer; font-weight:800; font-size:0.8rem; transition:0.2s;">Speed Run</button>
+              <button id="modeMatchBtn" style="background:transparent; color:#64748b; padding:0.6rem 1.2rem; border:none; border-radius:99px; cursor:pointer; font-weight:800; font-size:0.8rem; transition:0.2s;">Match Blast</button>
+              <button id="modeSystemSettingsBtn" style="background:transparent; color:#ef4444; border: 1px dashed rgba(239,68,68,0.4); padding:0.6rem 1.2rem; border-radius:99px; cursor:pointer; font-weight:800; font-size:0.8rem; transition:0.2s; margin-left:4px;">🛠️ App Settings</button>
+            </div>
+
+            <!-- CARD GENERATION ENGINE + MASS BULK ADD ACCORDION -->
+            <div id="cardEditorAndBulkSection" style="width:100%; display:flex; flex-direction:column; gap:8px;">
+              <div id="cardEditorBox" style="background: var(--bg-card); padding: 1rem; border-radius: 16px; width: 100%; display: flex; gap: 12px; border: 1px solid var(--border-color); box-sizing:border-box; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+                <input type="text" id="termInput" placeholder="Add Term..." style="flex:1; padding: 0.75rem 1.1rem; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-input); color: white; font-size:0.9rem; outline:none;">
+                <input type="text" id="defInput" placeholder="Add Definition..." style="flex:1; padding: 0.75rem 1.1rem; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-input); color: white; font-size:0.9rem; outline:none;">
+                <button id="addCardBtn" style="padding: 0.75rem 1.5rem; border-radius: 10px; background: var(--primary-color); color: white; font-weight: 800; border: none; cursor: pointer; font-size:0.9rem; box-shadow: 0 4px 12px var(--primary-glow);">Add</button>
+              </div>
+              
+              <!-- BULK IMPORTER PANEL -->
+              <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius:12px; padding:8px 12px;">
+                <div id="bulkToggleHeader" style="cursor:pointer; font-size:0.75rem; font-weight:800; color:#64748b; display:flex; justify-content:between; width:100%; text-transform:uppercase; letter-spacing:0.05em;">
+                  <span style="flex:1;">📋 Bulk Import / Export Engine</span>
+                  <span id="bulkArrow">▲</span>
+                </div>
+                <div id="bulkContent" style="display:none; flex-direction:column; gap:8px; margin-top:8px;">
+                  <textarea id="bulkTextArea" placeholder="Paste lines formatted as: Term - Definition&#10;Example:&#10;Apple - A delicious round red fruit&#10;Banana - A long curved yellow fruit" style="width:100%; height:110px; background:var(--bg-input); color:white; border:1px solid var(--border-color); border-radius:8px; padding:8px; box-sizing:border-box; font-family:monospace; font-size:0.8rem; resize:vertical; outline:none;"></textarea>
+                  <div style="display:flex; gap:10px;">
+                    <button id="bulkImportBtn" style="flex:1; background:var(--primary-color); border:none; color:white; padding:6px; font-weight:800; border-radius:6px; font-size:0.75rem; cursor:pointer;">PARSE & IMPORT DATA</button>
+                    <button id="bulkExportBtn" style="flex:1; background:transparent; border:1px solid var(--border-color); color:#94a3b8; padding:6px; font-weight:800; border-radius:6px; font-size:0.75rem; cursor:pointer;">LOAD CURRENT DATA</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- VIEWPORT LAYOUT WRAPPER -->
+            <div id="workspace" style="width:100%; min-height:380px; display:flex; flex-direction:column; align-items:center; justify-content:flex-start;">
+              
+              <!-- MODE 1: STANDARD FLASHCARDS -->
+              <div id="viewFlashcards" style="width:100%; display:flex; flex-direction:column; align-items:center; gap:1.2rem;">
+                <div style="width:100%; background:var(--bg-input); height:6px; border-radius:99px; overflow:hidden; border:1px solid rgba(255,255,255,0.02);">
+                  <div id="deckProgressBar" style="width:0%; height:100%; background:var(--primary-color); transition: width 0.2s ease;"></div>
+                </div>
+
+                <div id="cardDisplay" class="premium-card" style="background: var(--bg-card); width: 100%; height: 210px; display: flex; justify-content: center; align-items: center; border-radius: 24px; font-size: 1.65rem; font-weight: 800; text-align: center; cursor: pointer; border: 1px solid var(--border-color); padding: 2.5rem; box-sizing:border-box; user-select: none; transition: transform 0.25s, background 0.2s; box-shadow: 0 25px 50px rgba(0,0,0,0.65);">Select a folder to load cards.</div>
+                <div style="display:flex; gap:28px; align-items:center;">
+                  <button id="prevBtn" style="background:var(--bg-card); border:1px solid var(--border-color); color:white; width:56px; height:56px; border-radius:50%; font-size:1.5rem; cursor:pointer; display:flex; align-items:center; justify-content:center;">←</button>
+                  <span id="navTracker" style="font-weight:800; font-size:1.2rem; color:#475569; min-width:100px; text-align:center;">0 / 0</span>
+                  <button id="nextBtn" style="background:var(--bg-card); border:1px solid var(--border-color); color:white; width:56px; height:56px; border-radius:50%; font-size:1.5rem; cursor:pointer; display:flex; align-items:center; justify-content:center;">→</button>
+                </div>
+
+                <!-- INDIVIDUAL NESTED FLASHCARD INSPECTOR ENGINE (VIEW & EDIT INDIVIDUAL CARD STRINGS) -->
+                <div style="width:100%; margin-top:1.5rem; display:flex; flex-direction:column; gap:8px;">
+                  <h3 style="margin:0; font-size:0.8rem; font-weight:900; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">📋 Cards Inside Folder (Click Items to Edit/Rename)</h3>
+                  <div id="individualCardsInspector" style="display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; width:100%; padding-right:4px;"></div>
+                </div>
+              </div>
+
+              <!-- MODE 2 & 3: QUIZ & CRAM SYSTEM -->
+              <div id="viewQuizOrCram" style="width:100%; display:none; flex-direction:column; gap:1.25rem;">
+                <div id="cramTimerDock" style="display:flex; flex-direction:column; background:var(--bg-card); padding:1rem 1.4rem; border-radius:16px; border:1px solid var(--border-color); gap:10px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                      <span style="color:#ef4444; font-weight:900; font-size:0.8rem; letter-spacing:0.08em;">TIMEOUT TIMER:</span>
+                      <span id="quizTimer" style="font-size:1.4rem; font-weight:900; color:#ef4444;">10s</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span style="font-size:0.8rem; color:#64748b; font-weight:800;">Interval:</span>
+                      <select id="timerSettingSelect" style="background:var(--bg-input); color:var(--text-main); border:1px solid var(--border-color); padding:6px 10px; border-radius:8px; font-weight:800; font-size:0.85rem; cursor:pointer; outline:none;">
+                        <option value="5">5 seconds</option>
+                        <option value="10" selected>10 seconds</option>
+                        <option value="15">15 seconds</option>
+                        <option value="30">30 seconds</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style="width:100%; background:var(--bg-input); height:6px; border-radius:99px; overflow:hidden;">
+                    <div id="cramProgressBar" style="width:100%; height:100%; background:linear-gradient(to right, #ef4444, #f59e0b); transform-origin: left; transition: width 1s linear;"></div>
+                  </div>
+                </div>
+                <div id="quizQuestion" style="background:var(--bg-card); padding:2.25rem; border-radius:20px; font-size:1.4rem; font-weight:800; text-align:center; border:1px solid var(--border-color);">Question</div>
+                <div id="quizOptions" style="display:flex; flex-direction:column; gap:12px;"></div>
+                <div id="quizFeedback" style="text-align:center; font-weight:900; font-size:1.2rem; min-height:30px;"></div>
+              </div>
+
+              <!-- MODE 4: SPEED RUN MATRIX -->
+              <div id="viewSpeedRun" style="width:100%; display:none; flex-direction:column; align-items:center; gap:1.25rem;">
+                <div style="background:var(--bg-card); padding:1rem 2rem; border-radius:16px; border:1px solid var(--border-color); text-align:center; box-shadow:0 0 20px rgba(0,0,0,0.3);">
+                  <div style="font-size:0.75rem; color:#64748b; font-weight:800; text-transform:uppercase;">Stopwatch Timer</div>
+                  <div id="speedTimerDisplay" style="font-size:2.2rem; font-weight:900; font-family:monospace; color:var(--primary-color);">00:00.000</div>
+                </div>
+                <div id="speedCardDisplay" style="background:var(--bg-card); width:100%; padding:2.5rem; text-align:center; border-radius:20px; border:1px solid var(--border-color); font-size:1.5rem; font-weight:800;">Press Start to Race</div>
+                <input type="text" id="speedAnswerInput" placeholder="Type definition here and press Enter..." style="width:100%; padding:1rem; border-radius:12px; border:1px solid var(--border-color); background:var(--bg-input); color:white; font-size:1.1rem; text-align:center; outline:none;" disabled>
+                <div id="speedRunFeedback" style="font-weight:800; min-height:24px;"></div>
+                <button id="speedRunStartBtn" style="background:var(--primary-color); color:white; border:none; padding:1rem 2.5rem; border-radius:12px; font-weight:900; font-size:1rem; cursor:pointer;">START SPEED RUN</button>
+              </div>
+
+              <!-- MODE 5: MATCH BLAST COMPONENT GRID -->
+              <div id="viewMatchBlast" style="width:100%; display:none; flex-direction:column; gap:1.5rem;">
+                <div style="text-align:center;">
+                  <span style="font-size:0.8rem; font-weight:800; color:#64748b; text-transform:uppercase;">Click matching terms and definitions to clear the board</span>
+                  <div id="matchBlastTimer" style="font-size:1.3rem; font-weight:900; font-family:monospace; margin-top:4px;">Time: 0.0s</div>
+                </div>
+                <div id="matchGridContainer" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap:12px; width:100%;"></div>
+                <button id="matchResetBtn" style="background:var(--primary-color); color:white; border:none; padding:0.8rem 2rem; border-radius:10px; font-weight:800; cursor:pointer; align-self:center; margin-top:10px;">Reset Match Board</button>
+              </div>
+
+              <!-- MODE 6: PHYSICAL SYSTEM SETTINGS DASHBOARD PANEL -->
+              <div id="viewSystemSettingsDashboard" style="width:100%; display:none; flex-direction:column; gap:1.5rem; background:var(--bg-card); border:1px solid var(--border-color); padding:2rem; border-radius:20px; box-sizing:border-box;">
+                <div>
+                  <h2 style="margin:0; font-size:1.5rem; font-weight:900; color:#ef4444;">System Settings Dashboard</h2>
+                  <p style="margin:4px 0 0 0; font-size:0.85rem; color:#64748b;">Manage system-wide folder records and user authorization data keys.</p>
+                </div>
+                
+                <hr style="border:0; border-top:1px solid var(--border-color); margin:0;">
+
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                  <h4 style="margin:0; font-size:0.9rem; font-weight:800; color:var(--text-main);">☣️ Destructive Zone</h4>
+                  <p style="margin:0; font-size:0.8rem; color:#64748b;">These changes are structural modifications to cloud profiles and cannot be reverted.</p>
+                  
+                  <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
+                    <button id="deleteAllDecksBtn" style="background:rgba(239, 68, 68, 0.1); color:#ef4444; border:1px solid rgba(239, 68, 68, 0.4); width:100%; padding:0.8rem; border-radius:10px; font-weight:800; font-size:0.85rem; cursor:pointer; text-transform:uppercase; letter-spacing:0.05em; text-align:left; display:flex; justify-content:space-between; align-items:center;">
+                      <span>Purge All Active Folders</span>
+                      <span style="background:rgba(239,68,68,0.2); padding:2px 8px; border-radius:4px; font-size:0.7rem;">WIPE DATA</span>
+                    </button>
+                    
+                    <button id="deleteAccountBtn" style="background:rgba(239, 68, 68, 0.2); color:#ef4444; border:1px solid #ef4444; width:100%; padding:0.8rem; border-radius:10px; font-weight:800; font-size:0.85rem; cursor:pointer; text-transform:uppercase; letter-spacing:0.05em; text-align:left; display:flex; justify-content:space-between; align-items:center;">
+                      <span>Terminate User Authorization Key</span>
+                      <span style="background:#ef4444; color:white; padding:2px 8px; border-radius:4px; font-size:0.7rem;">DELETE ACCOUNT</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- MASTER FOOTER -->
+      <div style="text-align: center; padding: 0.8rem; background: #04060c; border-top: 1px solid var(--border-color); font-size: 0.8rem; color: #475569; font-weight: 700; z-index:20; letter-spacing:0.05em;">
+        OpenCards Platform • Powered by Marquis
+      </div>
+    `;
+
+    // --- CLOUD DATA LAYER CONFIGURATION ---
+    const SUPABASE_URL = "https://olumrzkpqmhypagkhvmy.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_qjpgobc7wwJOiH_asyEfUg_1P-Q5FS2";
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // --- LIVE CONTROLLER STATE DATA ---
+    let allDecks = [];
+    let currentDeckIndex = -1;
+    let currentCardIndex = 0;
+    let showingTerm = true;
+    let currentUser = null;
+    let activeMode = 'cards'; 
+    let quizCurrentIndex = 0;
+    let countdownInterval = null;
+    let secondsLeft = 10;
+    let configuredTimerMax = 10;
+    let currentStreak = 0;
+
+    // --- TIMER SYSTEM ARRAYS ---
+    let speedStopwatchInterval = null;
+    let speedStartTime = 0;
+    let speedCurrentIndex = 0;
+    let speedActiveRunning = false;
+
+    let matchBlastInterval = null;
+    let matchBlastStartTime = 0;
+    let matchActiveTimer = false;
+    let matchSelectedBtn = null;
+    let matchClearedCount = 0;
+
+    // --- THEME LOAD BOOTSTRAPPING PROCESS ---
+    function applyAppTheme(themeName) {
+      const b = document.getElementById('masterBody');
+      b.className = ''; 
+      if(themeName === 'emerald') b.classList.add('theme-emerald');
+      if(themeName === 'crimson') b.classList.add('theme-crimson');
+    }
+    applyAppTheme(cachedTheme);
+
+    // --- INITIAL RECOVERY RENDER SCHEDULER FOR ACCORDIONS ---
+    const settingsBox = document.getElementById('settingsContentBox');
+    const settingsArrow = document.getElementById('settingsCollapseArrow');
+    if(cachedSettingsCollapse) {
+      settingsBox.style.maxHeight = '0px';
+      settingsBox.style.padding = '0px';
+      settingsBox.style.border = 'none';
+      settingsBox.style.opacity = '0';
+      settingsBox.style.margin = '0px';
+      settingsArrow.style.transform = 'rotate(-90deg)';
+    } else {
+      settingsBox.style.maxHeight = '220px';
+    }
+
+    const foldersListEl = document.getElementById('decksList');
+    const foldersArrow = document.getElementById('collapseArrow');
+    if(cachedFoldersCollapse) {
+      foldersListEl.style.maxHeight = '0px';
+      foldersListEl.style.overflow = 'hidden';
+      foldersArrow.style.transform = 'rotate(-90deg)';
+    } else {
+      foldersListEl.style.maxHeight = '1000px';
+    }
+
+    // --- SYSTEM AUDIO AUDIO ENGINE ---
+    function triggerHapticAudio(freq, duration, type="sine") {
+      if(document.getElementById('settingMuteToggle').checked) return;
+      if(!document.getElementById('settingAudioToggle').checked) return;
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch(e) {}
+    }
+
+    // --- LOCAL CACHING AND INPUT DISPATCH ENGINE CONTROLS ---
+    document.getElementById('settingMuteToggle').onchange = (e) => {
+      const isMuted = e.target.checked;
+      localStorage.setItem('marquis-mute', isMuted);
+      const subSettings = document.getElementById('audioSubSettings');
+      if(isMuted) {
+        subSettings.style.opacity = '0.35';
+        subSettings.style.pointerEvents = 'none';
+      } else {
+        subSettings.style.opacity = '1';
+        subSettings.style.pointerEvents = 'auto';
+      }
+    };
+
+    document.getElementById('settingAudioToggle').onchange = (e) => {
+      localStorage.setItem('marquis-sfx', e.target.checked);
+    };
+
+    document.getElementById('settingAutoFlipTerm').onchange = (e) => {
+      localStorage.setItem('marquis-autoflip', e.target.checked);
+    };
+
+    document.getElementById('settingThemeSelect').onchange = (e) => {
+      const val = e.target.value;
+      localStorage.setItem('marquis-theme', val);
+      applyAppTheme(val);
+    };
+
+    // --- ACCORDION CODES UPGRADED WITH LOCAL STORAGE SAVE FLAGS ---
+    document.getElementById('toggleSettingsHeader').onclick = () => {
+      cachedSettingsCollapse = !cachedSettingsCollapse;
+      localStorage.setItem('marquis-collapse-settings', cachedSettingsCollapse);
+      const box = document.getElementById('settingsContentBox');
+      const arrow = document.getElementById('settingsCollapseArrow');
+      if(cachedSettingsCollapse) {
+        box.style.maxHeight = '0px';
+        box.style.padding = '0px';
+        box.style.border = 'none';
+        box.style.opacity = '0';
+        box.style.margin = '0px';
+        arrow.style.transform = 'rotate(-90deg)';
+      } else {
+        box.style.maxHeight = '220px';
+        box.style.padding = '0.8rem';
+        box.style.border = '1px solid var(--border-color)';
+        box.style.opacity = '1';
+        box.style.margin = 'inherit';
+        arrow.style.transform = 'rotate(0deg)';
+      }
+    };
+
+    document.getElementById('toggleFoldersHeader').onclick = () => {
+      cachedFoldersCollapse = !cachedFoldersCollapse;
+      localStorage.setItem('marquis-collapse-folders', cachedFoldersCollapse);
+      const listEl = document.getElementById('decksList');
+      const arrowEl = document.getElementById('collapseArrow');
+      if (cachedFoldersCollapse) {
+        listEl.style.maxHeight = '0px';
+        listEl.style.overflow = 'hidden';
+        arrowEl.style.transform = 'rotate(-90deg)';
+      } else {
+        listEl.style.maxHeight = '1000px';
+        setTimeout(() => { if(!cachedFoldersCollapse) listEl.style.overflowY = 'auto'; }, 250);
+        arrowEl.style.transform = 'rotate(0deg)';
+      }
+    };
+
+    let bulkOpen = false;
+    document.getElementById('bulkToggleHeader').onclick = () => {
+      bulkOpen = !bulkOpen;
+      document.getElementById('bulkContent').style.display = bulkOpen ? 'flex' : 'none';
+      document.getElementById('bulkArrow').innerText = bulkOpen ? '▼' : '▲';
+    };
+
+    document.getElementById('sidebarSearchInput').oninput = (e) => {
+      renderDecksList(e.target.value.trim().toLowerCase());
+    };
+
+    // --- ACCOUNT SYSTEM SIGN IN SECURITY ENGINE ---
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        currentUser = session.user;
+        document.getElementById('authContainer').style.display = 'none';
+        document.getElementById('sidebarPanel').style.display = 'flex';
+        document.getElementById('appScreen').style.display = 'flex';
+        loadAllDecks();
+      } else {
+        currentUser = null;
+        clearAllTimersGlobal();
+        document.getElementById('authContainer').style.display = 'flex';
+        document.getElementById('authScreen').style.display = 'flex';
+        document.getElementById('verifyEmailScreen').style.display = 'none';
+        document.getElementById('sidebarPanel').style.display = 'none';
+        document.getElementById('appScreen').style.display = 'none';
+      }
+    });
+
+    document.getElementById('signUpBtn').onclick = async () => {
+      const email = document.getElementById('emailInput').value.trim();
+      const password = document.getElementById('passwordInput').value.trim();
+      if (!email || !password) return alert("Please enter valid credential inputs.");
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) alert(error.message);
+      else {
+        document.getElementById('authScreen').style.display = 'none';
+        document.getElementById('verifyEmailScreen').style.display = 'flex';
+      }
+    };
+
+    document.getElementById('backToLoginBtn').onclick = () => {
+      document.getElementById('verifyEmailScreen').style.display = 'none';
+      document.getElementById('authScreen').style.display = 'flex';
+    };
+
+    document.getElementById('loginBtn').onclick = async () => {
+      const email = document.getElementById('emailInput').value.trim();
+      const password = document.getElementById('passwordInput').value.trim();
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) alert(error.message);
+    };
+
+    document.getElementById('logoutBtn').onclick = () => supabase.auth.signOut();
+
+    document.getElementById('timerSettingSelect').onchange = (e) => {
+      configuredTimerMax = parseInt(e.target.value, 10);
+      if(activeMode === 'cram' && allDecks[currentDeckIndex]?.cards.length >= 2) {
+        runCramClockTimer();
+      }
+    };
+
+    // --- STACK PROFILE SYNCHRONIZATION PIPELINES ---
+    async function loadAllDecks() {
+      const { data, error } = await supabase.from('decks').select('*').order('created_at', { ascending: true });
+      if (!error && data) {
+        allDecks = data;
+        renderDecksList();
+        if(allDecks.length > 0 && currentDeckIndex === -1) selectDeck(0);
+      }
+    }
+
+    function renderDecksList(query = '') {
+      const listEl = document.getElementById('decksList');
+      listEl.innerHTML = '';
+      
+      const filtered = allDecks.filter(d => d.title.toLowerCase().includes(query));
+
+      if(filtered.length === 0) {
+        listEl.innerHTML = `<p style="color:#475569; font-size:0.85rem; margin:12px 0; text-align:center; font-weight:700;">No matching folders.</p>`;
+        return;
+      }
+      
+      filtered.forEach((deck) => {
+        const globalIndex = allDecks.findIndex(d => d.id === deck.id);
+        const container = document.createElement('div');
+        container.style.cssText = `display:flex; align-items:center; background:${globalIndex === currentDeckIndex ? 'rgba(255,255,255,0.03)' : 'var(--bg-input)'}; border:${globalIndex === currentDeckIndex ? '1px solid var(--primary-color)' : '1px solid var(--border-color)'}; border-radius:10px; padding:8px 12px; gap:8px; box-shadow: 0 4px 10px rgba(0,0,0,0.15);`;
+
+        const titleBtn = document.createElement('div');
+        titleBtn.style.cssText = `flex:1; text-align:left; color:white; cursor:pointer; font-weight:700; font-size:0.9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; flex-direction:column; gap:2px;`;
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.innerText = `📂 ${deck.title}`;
+        titleBtn.appendChild(nameSpan);
+
+        const countBadge = document.createElement('span');
+        countBadge.innerText = `${deck.cards.length} cards`;
+        countBadge.style.cssText = `font-size:0.7rem; color:${globalIndex === currentDeckIndex ? 'var(--primary-color)' : '#475569'}; margin-left:22px; font-weight:800; text-transform:uppercase;`;
+        titleBtn.appendChild(countBadge);
+
+        titleBtn.onclick = () => selectDeck(globalIndex);
+        container.appendChild(titleBtn);
+
+        const renameBtn = document.createElement('button');
+        renameBtn.innerText = '✏️';
+        renameBtn.style.cssText = `background:transparent; border:none; cursor:pointer; font-size:0.85rem; padding:4px; opacity:0.4; color: white;`;
+        renameBtn.onclick = (e) => { e.stopPropagation(); renameDeckFolder(globalIndex); };
+        container.appendChild(renameBtn);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.innerText = '🗑️';
+        deleteBtn.style.cssText = `background:transparent; border:none; cursor:pointer; font-size:0.85rem; padding:4px; opacity:0.4; color: white;`;
+        deleteBtn.onclick = (e) => { e.stopPropagation(); deleteDeckFolder(globalIndex); };
+        container.appendChild(deleteBtn);
+
+        listEl.appendChild(container);
+      });
+    }
+
+    document.getElementById('createDeckBtn').onclick = async () => {
+      const title = document.getElementById('newDeckTitle').value.trim();
+      if (!title) return;
+      
+      const { data, error } = await supabase.from('decks').insert({
+        user_id: currentUser.id,
+        title: title,
+        cards: []
+      }).select().single();
+
+      if (!error && data) {
+        document.getElementById('newDeckTitle').value = '';
+        allDecks.push(data);
+        currentDeckIndex = allDecks.length - 1;
+        selectDeck(currentDeckIndex);
+        renderDecksList();
+      }
+    };
+
+    async function renameDeckFolder(index) {
+      const target = allDecks[index];
+      const newName = prompt(`Rename folder "${target.title}" to:`, target.title);
+      if(!newName || newName.trim() === "" || newName === target.title) return;
+
+      const { error } = await supabase.from('decks').update({ title: newName.trim() }).eq('id', target.id);
+      if(!error) {
+        allDecks[index].title = newName.trim();
+        if(currentDeckIndex === index) document.getElementById('currentDeckHeading').innerText = newName.trim();
+        renderDecksList();
+      }
+    }
+
+    async function deleteDeckFolder(index) {
+      const target = allDecks[index];
+      if(!confirm(`Delete folder "${target.title}"?`)) return;
+
+      const { error } = await supabase.from('decks').delete().eq('id', target.id);
+      if(!error) {
+        allDecks.splice(index, 1);
+        if(currentDeckIndex === index) currentDeckIndex = allDecks.length - 1;
+        else if (currentDeckIndex > index) currentDeckIndex--;
+        
+        if(currentDeckIndex !== -1) selectDeck(currentDeckIndex);
+        else {
+          document.getElementById('currentDeckHeading').innerText = "Select or Create a Folder";
+          document.getElementById('cardCounter').innerText = "0 cards";
+          updateFlashcardUI();
+        }
+        renderDecksList();
+      }
+    }
+
+    // --- DESTRUCTIVE SYSTEM RECORD PURGES (MOVED SECURELY TO DASHBOARD VIEW) ---
+    document.getElementById('deleteAllDecksBtn').onclick = async () => {
+      if(allDecks.length === 0) return alert("You don't have any folders to clear.");
+      if(!confirm("⚠️ CRITICAL WARNING: This will permanently wipe EVERY folder and flashcard from your account! Are you absolutely sure?")) return;
+      if(!confirm("Final verification: Confirmed? There is completely no going back.")) return;
+
+      for(let i=0; i<allDecks.length; i++){
+         await supabase.from('decks').delete().eq('id', allDecks[i].id);
+      }
+      
+      allDecks = [];
+      currentDeckIndex = -1;
+      currentCardIndex = 0;
+      document.getElementById('currentDeckHeading').innerText = "Select or Create a Folder";
+      document.getElementById('cardCounter').innerText = "0 cards";
+      
+      renderDecksList();
+      switchMode('cards');
+    };
+
+    document.getElementById('deleteAccountBtn').onclick = async () => {
+      if(!confirm("🚨 ACCOUNT TERMINATION PROTOCOL: This will permanently delete your authentication record and clear your user profile from cloud space. Proceed?")) return;
+      if(!confirm("Final verification check: Confirming account destruction? This process is completely irreversible.")) return;
+
+      // Drop all active profile folder ties first
+      for(let i=0; i<allDecks.length; i++){
+         await supabase.from('decks').delete().eq('id', allDecks[i].id);
+      }
+
+      // Execute standard client signout drop routine
+      const { error } = await supabase.rpc('delete_user_account_link'); 
+      if(error) {
+         // Fallback if direct RPC endpoint isn't mapped out explicitly on backend DB layer instance rules
+         alert("Data rows pruned. Signing user down directly.");
+      }
+      supabase.auth.signOut();
+    };
+
+    // --- DECK SHUFFLER CONTROLLER ---
+    document.getElementById('shuffleDeckBtn').onclick = async () => {
+      if(currentDeckIndex === -1 || allDecks[currentDeckIndex].cards.length <= 1) {
+         return alert("Load a folder containing at least 2 cards to shuffle.");
+      }
+      allDecks[currentDeckIndex].cards.sort(() => 0.5 - Math.random());
+      currentCardIndex = 0;
+      showingTerm = true;
+      await autoSyncCardsToCloud();
+      updateFlashcardUI();
+      triggerHapticAudio(440, 0.15, "triangle");
+    };
+
+    function selectDeck(index) {
+      currentDeckIndex = index;
+      currentCardIndex = 0;
+      showingTerm = true;
+      currentStreak = 0;
+      updateStreakBadge();
+      renderDecksList();
+      
+      const deck = allDecks[currentDeckIndex];
+      document.getElementById('currentDeckHeading').innerText = deck.title;
+      document.getElementById('cardCounter').innerText = `${deck.cards.length} cards`;
+      
+      switchMode(activeMode);
+    }
+
+    async function autoSyncCardsToCloud() {
+      if (currentDeckIndex === -1) return;
+      const targetDeck = allDecks[currentDeckIndex];
+      await supabase.from('decks').update({ cards: targetDeck.cards }).eq('id', targetDeck.id);
+      renderIndividualCardsInspector();
+    }
+
+    document.getElementById('addCardBtn').onclick = async () => {
+      if (currentDeckIndex === -1) return alert("Select a destination folder first.");
+      const term = document.getElementById('termInput').value.trim();
+      const definition = document.getElementById('defInput').value.trim();
+      if (!term || !definition) return;
+
+      allDecks[currentDeckIndex].cards.push({ term, definition });
+      document.getElementById('termInput').value = '';
+      document.getElementById('defInput').value = '';
+      document.getElementById('cardCounter').innerText = `${allDecks[currentDeckIndex].cards.length} cards`;
+      
+      renderDecksList();
+      await autoSyncCardsToCloud();
+      switchMode(activeMode);
+    };
+
+    // --- IMPORTER / EXPORTER ENGINES ---
+    document.getElementById('bulkExportBtn').onclick = () => {
+      if(currentDeckIndex === -1) return alert("Select a folder to load content from.");
+      const cards = allDecks[currentDeckIndex].cards;
+      let outputText = "";
+      cards.forEach(c => { outputText += `${c.term} - ${c.definition}\n`; });
+      document.getElementById('bulkTextArea').value = outputText;
+    };
+
+    document.getElementById('bulkImportBtn').onclick = async () => {
+      if(currentDeckIndex === -1) return alert("Select a destination folder to dump your parsed items into.");
+      const rawText = document.getElementById('bulkTextArea').value.trim();
+      if(!rawText) return alert("Please input structured raw data rows first.");
+
+      const rows = rawText.split("\n");
+      let addedCount = 0;
+      
+      rows.forEach(row => {
+         if(row.includes(" - ")) {
+           const parts = row.split(" - ");
+           const term = parts[0].trim();
+           const definition = parts.slice(1).join(" - ").trim();
+           if(term && definition) {
+              allDecks[currentDeckIndex].cards.push({ term, definition });
+              addedCount++;
+           }
+         }
+      });
+
+      if(addedCount > 0) {
+         document.getElementById('bulkTextArea').value = "";
+         document.getElementById('cardCounter').innerText = `${allDecks[currentDeckIndex].cards.length} cards`;
+         renderDecksList();
+         await autoSyncCardsToCloud();
+         switchMode(activeMode);
+         alert(`Successfully batch processed and generated ${addedCount} cards!`);
+      } else {
+         alert("Could not process lines. Ensure your formatting exactly matches: Term - Definition");
+      }
+    };
+
+    function clearAllTimersGlobal() {
+      clearInterval(countdownInterval);
+      clearInterval(speedStopwatchInterval);
+      clearInterval(matchBlastInterval);
+      speedActiveRunning = false;
+      matchActiveTimer = false;
+    }
+
+    // --- FLASHCARDS CORE INTERFACE ---
+    document.getElementById('cardDisplay').onclick = () => toggleCardFlip();
+
+    function toggleCardFlip(){
+      const cards = allDecks[currentDeckIndex]?.cards || [];
+      if (cards.length === 0) return;
+      showingTerm = !showingTerm;
+      updateFlashcardUI();
+    }
+
+    function updateFlashcardUI() {
+      const display = document.getElementById('cardDisplay');
+      const tracker = document.getElementById('navTracker');
+      const cards = allDecks[currentDeckIndex]?.cards || [];
+      const progBar = document.getElementById('deckProgressBar');
+
+      if (cards.length === 0) {
+        display.innerText = "Folder empty. Add terms using the fields above.";
+        display.style.background = "var(--bg-card)";
+        display.style.color = "#475569";
+        tracker.innerText = "0 / 0";
+        progBar.style.width = "0%";
+        return;
+      }
+
+      if (currentCardIndex >= cards.length) currentCardIndex = cards.length - 1;
+      if (currentCardIndex < 0) currentCardIndex = 0;
+
+      const activeText = showingTerm ? cards[currentCardIndex].term : cards[currentCardIndex].definition;
+      display.innerText = activeText;
+      display.style.color = "var(--text-main)";
+      display.style.background = showingTerm ? "var(--bg-card)" : "var(--primary-glow)"; 
+      display.style.borderColor = showingTerm ? "var(--border-color)" : "var(--primary-color)";
+      tracker.innerText = `${currentCardIndex + 1} / ${cards.length}`;
+      
+      const percent = ((currentCardIndex + 1) / cards.length) * 100;
+      progBar.style.width = `${percent}%`;
+    }
+
+    function executeNextCard(){
+      const cards = allDecks[currentDeckIndex]?.cards || [];
+      if (cards.length <= 1) return;
+      currentCardIndex = (currentCardIndex + 1) % cards.length;
+      if(document.getElementById('settingAutoFlipTerm').checked) showingTerm = true;
+      updateFlashcardUI();
+    }
+
+    function executePrevCard(){
+      const cards = allDecks[currentDeckIndex]?.cards || [];
+      if (cards.length <= 1) return;
+      currentCardIndex = (currentCardIndex - 1 + cards.length) % cards.length;
+      if(document.getElementById('settingAutoFlipTerm').checked) showingTerm = true;
+      updateFlashcardUI();
+    }
+
+    document.getElementById('nextBtn').onclick = () => executeNextCard();
+    document.getElementById('prevBtn').onclick = () => executePrevCard();
+
+    // --- INDIVIDUAL CARD VIEWER & RENAME INLINE CONTROLLER ENGINE ---
+    function renderIndividualCardsInspector() {
+      const inspector = document.getElementById('individualCardsInspector');
+      inspector.innerHTML = '';
+      
+      if(currentDeckIndex === -1) return;
+      const cards = allDecks[currentDeckIndex].cards;
+      
+      if(cards.length === 0) {
+        inspector.innerHTML = `<p style="color:#475569; font-size:0.8rem; margin:4px 0; font-weight:700;">No cards stored in this folder profile yet.</p>`;
+        return;
+      }
+
+      cards.forEach((card, idx) => {
+        const row = document.createElement('div');
+        row.style.cssText = `display:flex; background:var(--bg-input); border:1px solid var(--border-color); border-radius:10px; padding:8px 12px; gap:10px; align-items:center; justify-content:space-between;`;
+
+        const dataBlock = document.createElement('div');
+        dataBlock.style.cssText = `display:flex; gap:14px; flex:1; min-width:0; overflow:hidden; font-size:0.85rem;`;
+
+        const termSpan = document.createElement('div');
+        termSpan.style.cssText = `color:var(--primary-color); font-weight:800; cursor:pointer; text-decoration:underline dashed rgba(59,130,246,0.3); text-underline-offset:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:40%;`;
+        termSpan.innerText = card.term;
+        termSpan.title = "Click to rename term strings";
+        termSpan.onclick = () => inlineUpdateCardKey(idx, 'term');
+
+        const spacer = document.createElement('span');
+        spacer.innerText = "➔";
+        spacer.style.color = "#475569";
+
+        const defSpan = document.createElement('div');
+        defSpan.style.cssText = `color:#94a3b8; font-weight:600; cursor:pointer; text-decoration:underline dashed rgba(148,163,184,0.3); text-underline-offset:3px; overflow:hidden; text-overflow:ellipsis; flex:1;`;
+        defSpan.innerText = card.definition;
+        defSpan.title = "Click to rename definition strings";
+        defSpan.onclick = () => inlineUpdateCardKey(idx, 'definition');
+
+        dataBlock.appendChild(termSpan);
+        dataBlock.appendChild(spacer);
+        dataBlock.appendChild(defSpan);
+
+        const dropCardBtn = document.createElement('button');
+        dropCardBtn.innerText = "🗑️";
+        dropCardBtn.style.cssText = `background:transparent; border:none; color:#ef4444; opacity:0.6; cursor:pointer; font-size:0.8rem; padding:4px;`;
+        dropCardBtn.onclick = () => dropIndividualCardRecord(idx);
+
+        row.appendChild(dataBlock);
+        row.appendChild(dropCardBtn);
+        inspector.appendChild(row);
+      });
+    }
+
+    async function inlineUpdateCardKey(cardIndex, fieldKey) {
+      const targetDeck = allDecks[currentDeckIndex];
+      const oldVal = targetDeck.cards[cardIndex][fieldKey];
+      const newVal = prompt(`Update card ${fieldKey} string value:`, oldVal);
+      
+      if(!newVal || newVal.trim() === "" || newVal.trim() === oldVal) return;
+      
+      targetDeck.cards[cardIndex][fieldKey] = newVal.trim();
+      updateFlashcardUI();
+      await autoSyncCardsToCloud();
+    }
+
+    async function dropIndividualCardRecord(cardIndex) {
+      if(!confirm("Remove this individual card record from folder?")) return;
+      allDecks[currentDeckIndex].cards.splice(cardIndex, 1);
+      
+      document.getElementById('cardCounter').innerText = `${allDecks[currentDeckIndex].cards.length} cards`;
+      renderDecksList();
+      updateFlashcardUI();
+      await autoSyncCardsToCloud();
+    }
+
+    // --- HARDWARE ACCELERATOR KEYBOARD ENGINE ---
+    window.addEventListener('keydown', (e) => {
+      if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT' || document.activeElement.tagName === 'TEXTAREA') return;
+      if (activeMode !== 'cards') return;
+      
+      if (e.code === 'Space') {
+        e.preventDefault();
+        toggleCardFlip();
+      } else if (e.code === 'ArrowRight') {
+        executeNextCard();
+      } else if (e.code === 'ArrowLeft') {
+        executePrevCard();
+      }
+    });
+
+    // --- INTERFACE DECK OVERLAYS SWITCH ROUTER ---
+    function switchMode(mode) {
+      activeMode = mode;
+      clearAllTimersGlobal();
+      
+      document.getElementById('viewFlashcards').style.display = mode === 'cards' ? 'flex' : 'none';
+      document.getElementById('viewQuizOrCram').style.display = (mode === 'quiz' || mode === 'cram') ? 'flex' : 'none';
+      document.getElementById('cramTimerDock').style.display = mode === 'cram' ? 'flex' : 'none';
+      document.getElementById('viewSpeedRun').style.display = mode === 'speed' ? 'flex' : 'none';
+      document.getElementById('viewMatchBlast').style.display = mode === 'match' ? 'flex' : 'none';
+      document.getElementById('viewSystemSettingsDashboard').style.display = mode === 'settings' ? 'flex' : 'none';
+      
+      document.getElementById('cardEditorAndBulkSection').style.display = mode === 'settings' ? 'none' : 'flex';
+      document.getElementById('streakBadge').style.display = (mode === 'quiz' || mode === 'cram') ? 'block' : 'none';
+
+      ['cards', 'quiz', 'cram', 'speed', 'match', 'settings'].forEach(m => {
+        const idMap = { 
+          'cards': 'modeFlashcardsBtn', 
+          'quiz': 'modeQuizBtn', 
+          'cram': 'modeCramBtn', 
+          'speed': 'modeSpeedBtn', 
+          'match': 'modeMatchBtn',
+          'settings': 'modeSystemSettingsBtn'
+        };
+        const el = document.getElementById(idMap[m]);
+        if(m === mode) {
+          if(m === 'settings') {
+            el.style.background = '#ef4444';
+            el.style.color = 'white';
+          } else {
+            el.style.background = 'var(--primary-color)';
+            el.style.color = 'white';
+          }
+        } else {
+          el.style.background = 'transparent';
+          el.style.color = (m === 'settings') ? '#ef4444' : '#64748b';
+        }
+      });
+
+      if (mode === 'cards') {
+        updateFlashcardUI();
+        renderIndividualCardsInspector();
+      }
+      if (mode === 'quiz' || mode === 'cram') startTestingEngines();
+      if (mode === 'speed') initSpeedRunLayout();
+      if (mode === 'match') initMatchBlastGrid();
+    }
+
+    document.getElementById('modeFlashcardsBtn').onclick = () => switchMode('cards');
+    document.getElementById('modeQuizBtn').onclick = () => switchMode('quiz');
+    document.getElementById('modeCramBtn').onclick = () => switchMode('cram');
+    document.getElementById('modeSpeedBtn').onclick = () => switchMode('speed');
+    document.getElementById('modeMatchBtn').onclick = () => switchMode('match');
+    document.getElementById('modeSystemSettingsBtn').onclick = () => switchMode('settings');
+
+    // --- CHILL QUIZ & CRAM RUN TIMES ---
+    function startTestingEngines() {
+      quizCurrentIndex = 0;
+      currentStreak = 0;
+      updateStreakBadge();
+      document.getElementById('quizFeedback').innerText = '';
+      loadTestingQuestion();
+    }
+
+    function updateStreakBadge() {
+      document.getElementById('streakCount').innerText = currentStreak;
+    }
+
+    function runCramClockTimer() {
+      clearInterval(countdownInterval);
+      secondsLeft = configuredTimerMax;
+      document.getElementById('quizTimer').innerText = `${secondsLeft}s`;
+      
+      const bar = document.getElementById('cramProgressBar');
+      bar.style.transition = 'none';
+      bar.style.width = '100%';
+      
+      setTimeout(() => {
+        bar.style.transition = `width ${secondsLeft}s linear`;
+        bar.style.width = '0%';
+      }, 50);
+
+      countdownInterval = setInterval(() => {
+        secondsLeft--;
+        document.getElementById('quizTimer').innerText = `${secondsLeft}s`;
+        if(secondsLeft <= 0) {
+          clearInterval(countdownInterval);
+          flagCramTimeout();
+        }
+      }, 1000);
+    }
+
+    function loadTestingQuestion() {
+      const cards = allDecks[currentDeckIndex]?.cards || [];
+      const questionBox = document.getElementById('quizQuestion');
+      const optionsBox = document.getElementById('quizOptions');
+      optionsBox.innerHTML = '';
+      
+      if (cards.length < 2) {
+        questionBox.innerText = "Folders require at least 2 cards to play multiple-choice modes.";
+        return;
+      }
+
+      if (quizCurrentIndex >= cards.length) {
+        questionBox.innerText = "🎉 All cards completed successfully!";
+        return;
+      }
+
+      const currentCard = cards[quizCurrentIndex];
+      questionBox.innerText = `Define: "${currentCard.term}"`;
+
+      let options = [currentCard.definition];
+      let pool = cards.filter(c => c.definition !== currentCard.definition).map(c => c.definition);
+      
+      pool = pool.sort(() => 0.5 - Math.random());
+      for(let i=0; i<Math.min(3, pool.length); i++) { options.push(pool[i]); }
+      options = options.sort(() => 0.5 - Math.random());
+
+      options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.innerText = opt;
+        btn.style.cssText = `background:var(--bg-input); color:var(--text-main); border:1px solid var(--border-color); padding:14px; border-radius:12px; text-align:left; cursor:pointer; font-weight:700; font-size:0.95rem; transition:0.15s;`;
+        btn.onclick = () => verifyActiveAnswer(opt, currentCard.definition);
+        optionsBox.appendChild(btn);
+      });
+
+      if (activeMode === 'cram') runCramClockTimer();
+    }
+
+    function verifyActiveAnswer(selected, correct) {
+      clearInterval(countdownInterval);
+      const feedback = document.getElementById('quizFeedback');
+      
+      if (selected === correct) {
+        triggerHapticAudio(587.33, 0.12, "triangle");
+        
+        currentStreak++;
+        updateStreakBadge();
+        feedback.innerText = "Correct!";
+        feedback.style.color = "#10b981";
+        
+        setTimeout(() => {
+          quizCurrentIndex++;
+          feedback.innerText = '';
+          loadTestingQuestion();
+        }, 1000);
+      } else {
+        triggerHapticAudio(110, 0.25, "sawtooth");
+        currentStreak = 0;
+        updateStreakBadge();
+        feedback.innerText = "Incorrect. Try again!";
+        feedback.style.color = "#ef4444";
+        
+        if (activeMode === 'cram') runCramClockTimer();
+      }
+    }
+
+    function flagCramTimeout() {
+      triggerHapticAudio(130, 0.35, "sawtooth");
+      currentStreak = 0;
+      updateStreakBadge();
+      
+      const feedback = document.getElementById('quizFeedback');
+      feedback.innerText = "Time expired! Advancing to next card...";
+      feedback.style.color = "#f59e0b";
+      
+      setTimeout(() => {
+        quizCurrentIndex++;
+        feedback.innerText = '';
+        loadTestingQuestion();
+      }, 1400);
+    }
+
+    // --- SPEED RUN TIME TRIAL ---
+    function initSpeedRunLayout() {
+      speedActiveRunning = false;
+      speedCurrentIndex = 0;
+      document.getElementById('speedTimerDisplay').innerText = "00:00.000";
+      document.getElementById('speedCardDisplay').innerText = "Press Start to Begin";
+      document.getElementById('speedAnswerInput').value = '';
+      document.getElementById('speedAnswerInput').disabled = true;
+      document.getElementById('speedRunFeedback').innerText = '';
+      document.getElementById('speedRunStartBtn').style.display = 'block';
+    }
+
+    document.getElementById('speedRunStartBtn').onclick = () => {
+      const cards = allDecks[currentDeckIndex]?.cards || [];
+      if(cards.length === 0) return alert("Add cards to this folder to run time trials.");
+      
+      speedActiveRunning = true;
+      speedCurrentIndex = 0;
+      document.getElementById('speedRunStartBtn').style.display = 'none';
+      document.getElementById('speedAnswerInput').disabled = false;
+      document.getElementById('speedAnswerInput').focus();
+      
+      speedStartTime = performance.now();
+      speedStopwatchInterval = setInterval(() => {
+        const elapsed = performance.now() - speedStartTime;
+        const m = Math.floor(elapsed / 60000).toString().padStart(2, '0');
+        const s = Math.floor((elapsed % 60000) / 1000).toString().padStart(2, '0');
+        const ms = Math.floor(elapsed % 1000).toString().padStart(3, '0');
+        document.getElementById('speedTimerDisplay').innerText = `${m}:${s}.${ms}`;
+      }, 33);
+
+      loadSpeedRunCard();
+    };
+
+    function loadSpeedRunCard() {
+      const cards = allDecks[currentDeckIndex].cards;
+      if(speedCurrentIndex >= cards.length) {
+        clearInterval(speedStopwatchInterval);
+        speedActiveRunning = false;
+        document.getElementById('speedAnswerInput').disabled = true;
+        document.getElementById('speedCardDisplay').innerText = "🏁 Finish! Run complete.";
+        return;
+      }
+      document.getElementById('speedCardDisplay').innerText = `Term: "${cards[speedCurrentIndex].term}"`;
+    }
+
+    document.getElementById('speedAnswerInput').onkeydown = (e) => {
+      if(e.key !== 'Enter' || !speedActiveRunning) return;
+      const val = e.target.value.trim().toLowerCase();
+      const target = allDecks[currentDeckIndex].cards[speedCurrentIndex].definition.trim().toLowerCase();
+      const feed = document.getElementById('speedRunFeedback');
+
+      if(val === target) {
+        triggerHapticAudio(659.25, 0.1, "sine");
+        feed.innerText = "Correct";
+        feed.style.color = "#10b981";
+        speedCurrentIndex++;
+        e.target.value = '';
+        loadSpeedRunCard();
+      } else {
+        triggerHapticAudio(180, 0.2, "triangle");
+        feed.innerText = "Incorrect definition";
+        feed.style.color = "#ef4444";
+      }
+    };
+
+    // --- MATCH BLAST CONNECTIONS MATRIX ---
+    function initMatchBlastGrid() {
+      clearInterval(matchBlastInterval);
+      matchActiveTimer = false;
+      matchSelectedBtn = null;
+      matchClearedCount = 0;
+      document.getElementById('matchBlastTimer').innerText = "Time: 0.0s";
+      
+      const cards = allDecks[currentDeckIndex]?.cards || [];
+      const grid = document.getElementById('matchGridContainer');
+      grid.innerHTML = '';
+
+      if(cards.length < 2) {
+        grid.innerHTML = `<p style="grid-column:1/-1; color:#475569; text-align:center; font-weight:700; padding:20px;">Add at least 2 cards to play Match Blast.</p>`;
+        return;
+      }
+
+      let elements = [];
+      const activeSample = cards.slice(0, 8); 
+      activeSample.forEach((c, idx) => {
+        elements.push({ text: c.term, matchId: idx, type: 'term' });
+        elements.push({ text: c.definition, matchId: idx, type: 'def' });
+      });
+
+      elements.sort(() => 0.5 - Math.random());
+
+      elements.forEach(item => {
+        const b = document.createElement('button');
+        b.innerText = item.text;
+        b.style.cssText = `background:var(--bg-card); color:var(--text-main); border:1px solid var(--border-color); padding:14px; border-radius:10px; font-weight:700; font-size:0.85rem; cursor:pointer; text-align:center; transition:0.15s; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; min-height:64px;`;
+        
+        b.onclick = () => executeMatchSelection(b, item);
+        grid.appendChild(b);
+      });
+    }
+
+    function executeMatchSelection(btn, item) {
+      if(!matchActiveTimer) {
+        matchActiveTimer = true;
+        matchBlastStartTime = performance.now();
+        matchBlastInterval = setInterval(() => {
+          const delta = ((performance.now() - matchBlastStartTime) / 1000).toFixed(1);
+          document.getElementById('matchBlastTimer').innerText = `Time: ${delta}s`;
+        }, 100);
+      }
+
+      if(btn.style.opacity === "0") return;
+
+      if(!matchSelectedBtn) {
+        matchSelectedBtn = { btn, item };
+        btn.classList.add('match-btn-selected');
+        triggerHapticAudio(440, 0.05, "sine");
+      } else {
+        if(matchSelectedBtn.btn === btn) {
+          btn.classList.remove('match-btn-selected');
+          matchSelectedBtn = null;
+          return;
+        }
+
+        if(matchSelectedBtn.item.matchId === item.matchId && matchSelectedBtn.item.type !== item.type) {
+          triggerHapticAudio(783.99, 0.15, "sine");
+          matchSelectedBtn.btn.style.opacity = "0";
+          matchSelectedBtn.btn.style.pointerEvents = "none";
+          btn.style.opacity = "0";
+          btn.style.pointerEvents = "none";
+          
+          matchClearedCount += 2;
+          const totalExpected = Math.min(allDecks[currentDeckIndex].cards.length, 8) * 2;
+          if(matchClearedCount >= totalExpected) {
+            clearInterval(matchBlastInterval);
+          }
+        } else {
+          triggerHapticAudio(220, 0.2, "sawtooth");
+          matchSelectedBtn.btn.classList.remove('match-btn-selected');
+        }
+        matchSelectedBtn = null;
+      }
+    }
+
+    document.getElementById('matchResetBtn').onclick = () => initMatchBlastGrid();
     </script>
 </body>
 </html>
