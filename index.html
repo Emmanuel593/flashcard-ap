@@ -536,29 +536,20 @@
 }
 
     // --- DESTRUCTIVE SYSTEM RECORD PURGES (MOVED SECURELY TO DASHBOARD VIEW) ---
-    document.getElementById('deleteAllDecksBtn').onclick = async () => {
-      if(allDecks.length === 0) return alert("You don't have any folders to clear.");
-      if(!confirm("⚠️ CRITICAL WARNING: This will permanently wipe EVERY folder and flashcard from your account! Are you absolutely sure?")) return;
-      if(!confirm("Final verification: Confirmed? There is completely no going back.")) return;
+document.getElementById('deleteAllDecksBtn').onclick = async () => {
+  if(allDecks.length === 0) return alert("You don't have any folders to clear.");
+  if(!confirm("⚠️ Are you sure you want to wipe EVERYTHING from the cloud?")) return;
 
-      for(let i=0; i<allDecks.length; i++){
-         await supabase.from('decks').delete().eq('id', allDecks[i].id);
-      }
-      
-      allDecks = [];
-      currentDeckIndex = -1;
-      currentCardIndex = 0;
-      document.getElementById('currentDeckHeading').innerText = "Select or Create a Folder";
-      document.getElementById('cardCounter').innerText = "0 cards";
-      
-      renderDecksList();
-      switchMode('cards');
-    };
-
-    document.getElementById('deleteAccountBtn').onclick = async () => {
-      if(!confirm("🚨 ACCOUNT TERMINATION PROTOCOL: This will permanently delete your authentication record and clear your user profile from cloud space. Proceed?")) return;
-      if(!confirm("Final verification check: Confirming account destruction? This process is completely irreversible.")) return;
-
+  // The 'await' here is critical. It forces the script to wait until the cloud finishes deleting.
+  for(let i = 0; i < allDecks.length; i++){
+     await supabase.from('decks').delete().eq('id', allDecks[i].id);
+  }
+  
+  // Now wipe local state
+  allDecks = [];
+  window.renderDecksList(); 
+  location.reload(); // Refresh the page to ensure the database is clean
+};
       // Drop all active profile folder ties first
       for(let i=0; i<allDecks.length; i++){
          await supabase.from('decks').delete().eq('id', allDecks[i].id);
