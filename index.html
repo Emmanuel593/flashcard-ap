@@ -1138,6 +1138,34 @@
     }
 
     document.getElementById('matchResetBtn').onclick = () => initMatchBlastGrid();
+        // --- GLOBAL DECK RENDERER (Paste this at the very bottom) ---
+window.renderDecksList = function(query = '') {
+    const listEl = document.getElementById('decksList');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    
+    // Safety check to prevent crashing if allDecks is undefined
+    const decksToRender = Array.isArray(window.allDecks) ? window.allDecks : [];
+    
+    const filtered = decksToRender.filter(d => 
+        d.title && d.title.toLowerCase().includes(query.toLowerCase())
+    );
+
+    if(filtered.length === 0) {
+        listEl.innerHTML = `<p style="color:#475569; font-size:0.85rem; margin:12px 0; text-align:center; font-weight:700;">No folders found.</p>`;
+        return;
+    }
+    
+    filtered.forEach((deck, index) => {
+        const btn = document.createElement('button');
+        btn.style.cssText = `background:var(--bg-input); color:white; border:1px solid var(--border-color); padding:0.6rem; border-radius:8px; text-align:left; cursor:pointer; font-weight:700; font-size:0.85rem; margin-bottom: 5px; width: 100%;`;
+        btn.innerText = deck.title;
+        btn.onclick = () => {
+            if (typeof selectDeck === 'function') selectDeck(index);
+        };
+        listEl.appendChild(btn);
+    });
+};
     </script>
 </body>
 </html>
