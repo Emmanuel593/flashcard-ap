@@ -1136,7 +1136,37 @@
         matchSelectedBtn = null;
       }
     }
+// --- ACTIVATING THE CREATE FOLDER BUTTON ---
+document.getElementById('createDeckBtn').onclick = async () => {
+    const input = document.getElementById('newDeckTitle');
+    const title = input.value.trim();
+    
+    // Safety: don't save if there's no title or no user
+    if (!title || !window.currentUser) {
+        alert("Please log in to create a folder.");
+        return;
+    }
 
+    // 1. Send the data to Supabase (The Cloud)
+    const { data, error } = await supabase.from('decks').insert({
+        user_id: window.currentUser.id,
+        title: title,
+        cards: []
+    }).select().single();
+
+    if (error) {
+        console.error("Save failed:", error);
+        alert("Could not save to the cloud: " + error.message);
+    } else {
+        // 2. Add to your local list so it shows up immediately
+        if (!window.allDecks) window.allDecks = [];
+        window.allDecks.push(data);
+        
+        // 3. Clear the input and refresh the list
+        input.value = '';
+        window.renderDecksList();
+    }
+};
     document.getElementById('matchResetBtn').onclick = () => initMatchBlastGrid();
         // --- GLOBAL DECK RENDERER (Paste this at the very bottom) ---
 window.renderDecksList = function(query = '') {
