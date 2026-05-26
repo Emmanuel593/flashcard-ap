@@ -524,112 +524,16 @@
 
     // --- STACK PROFILE SYNCHRONIZATION PIPELINES ---
     async function loadAllDecks() {
-      const { data, error } = await supabase.from('decks').select('*').order('created_at', { ascending: true });
-      if (!error && data) {
-        allDecks = data;
-        renderDecksList();
-        if(allDecks.length > 0 && currentDeckIndex === -1) selectDeck(0);
-      }
-    }
-
-    function renderDecksList(query = '') {
-      const listEl = document.getElementById('decksList');
-      listEl.innerHTML = '';
-      
-      const filtered = allDecks.filter(d => d.title.toLowerCase().includes(query));
-
-      if(filtered.length === 0) {
-        listEl.innerHTML = `<p style="color:#475569; font-size:0.85rem; margin:12px 0; text-align:center; font-weight:700;">No matching folders.</p>`;
-        return;
-      }
-      
-      filtered.forEach((deck) => {
-        const globalIndex = allDecks.findIndex(d => d.id === deck.id);
-        const container = document.createElement('div');
-        container.style.cssText = `display:flex; align-items:center; background:${globalIndex === currentDeckIndex ? 'rgba(255,255,255,0.03)' : 'var(--bg-input)'}; border:${globalIndex === currentDeckIndex ? '1px solid var(--primary-color)' : '1px solid var(--border-color)'}; border-radius:10px; padding:8px 12px; gap:8px; box-shadow: 0 4px 10px rgba(0,0,0,0.15);`;
-
-        const titleBtn = document.createElement('div');
-        titleBtn.style.cssText = `flex:1; text-align:left; color:white; cursor:pointer; font-weight:700; font-size:0.9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; flex-direction:column; gap:2px;`;
-        
-        const nameSpan = document.createElement('span');
-        nameSpan.innerText = `📂 ${deck.title}`;
-        titleBtn.appendChild(nameSpan);
-
-        const countBadge = document.createElement('span');
-        countBadge.innerText = `${deck.cards.length} cards`;
-        countBadge.style.cssText = `font-size:0.7rem; color:${globalIndex === currentDeckIndex ? 'var(--primary-color)' : '#475569'}; margin-left:22px; font-weight:800; text-transform:uppercase;`;
-        titleBtn.appendChild(countBadge);
-
-        titleBtn.onclick = () => selectDeck(globalIndex);
-        container.appendChild(titleBtn);
-
-        const renameBtn = document.createElement('button');
-        renameBtn.innerText = '✏️';
-        renameBtn.style.cssText = `background:transparent; border:none; cursor:pointer; font-size:0.85rem; padding:4px; opacity:0.4; color: white;`;
-        renameBtn.onclick = (e) => { e.stopPropagation(); renameDeckFolder(globalIndex); };
-        container.appendChild(renameBtn);
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.innerText = '🗑️';
-        deleteBtn.style.cssText = `background:transparent; border:none; cursor:pointer; font-size:0.85rem; padding:4px; opacity:0.4; color: white;`;
-        deleteBtn.onclick = (e) => { e.stopPropagation(); deleteDeckFolder(globalIndex); };
-        container.appendChild(deleteBtn);
-
-        listEl.appendChild(container);
-      });
-    }
-
-    document.getElementById('createDeckBtn').onclick = async () => {
-      const title = document.getElementById('newDeckTitle').value.trim();
-      if (!title) return;
-      
-      const { data, error } = await supabase.from('decks').insert({
-        user_id: currentUser.id,
-        title: title,
-        cards: []
-      }).select().single();
-
-      if (!error && data) {
-        document.getElementById('newDeckTitle').value = '';
-        allDecks.push(data);
-        currentDeckIndex = allDecks.length - 1;
-        selectDeck(currentDeckIndex);
-        renderDecksList();
-      }
-    };
-
-    async function renameDeckFolder(index) {
-      const target = allDecks[index];
-      const newName = prompt(`Rename folder "${target.title}" to:`, target.title);
-      if(!newName || newName.trim() === "" || newName === target.title) return;
-
-      const { error } = await supabase.from('decks').update({ title: newName.trim() }).eq('id', target.id);
-      if(!error) {
-        allDecks[index].title = newName.trim();
-        if(currentDeckIndex === index) document.getElementById('currentDeckHeading').innerText = newName.trim();
-        renderDecksList();
-      }
-    }
-
-    async function deleteDeckFolder(index) {
-      const target = allDecks[index];
-      if(!confirm(`Delete folder "${target.title}"?`)) return;
-
-      const { error } = await supabase.from('decks').delete().eq('id', target.id);
-      if(!error) {
-        allDecks.splice(index, 1);
-        if(currentDeckIndex === index) currentDeckIndex = allDecks.length - 1;
-        else if (currentDeckIndex > index) currentDeckIndex--;
-        
-        if(currentDeckIndex !== -1) selectDeck(currentDeckIndex);
-        else {
-          document.getElementById('currentDeckHeading').innerText = "Select or Create a Folder";
-          document.getElementById('cardCounter').innerText = "0 cards";
-          updateFlashcardUI();
-        }
-        renderDecksList();
-      }
-    }
+  if (!currentUser) return;
+  const { data, error } = await supabase.from('decks').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: true });
+  if (error) {
+    console.error("Error loading decks:", error);
+    return;
+  }
+  allDecks = data;
+  renderDecksList();
+  if(allDecks.length > 0 && currentDeckIndex === -1) selectDeck(0);
+}
 
     // --- DESTRUCTIVE SYSTEM RECORD PURGES (MOVED SECURELY TO DASHBOARD VIEW) ---
     document.getElementById('deleteAllDecksBtn').onclick = async () => {
