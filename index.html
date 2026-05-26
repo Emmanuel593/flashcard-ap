@@ -523,16 +523,16 @@
     };
 
     // --- STACK PROFILE SYNCHRONIZATION PIPELINES ---
-    async function loadAllDecks() {
+   async function loadAllDecks() {
   if (!currentUser) return;
   const { data, error } = await supabase.from('decks').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: true });
   if (error) {
     console.error("Error loading decks:", error);
     return;
   }
-  allDecks = data;
-  renderDecksList();
-  if(allDecks.length > 0 && currentDeckIndex === -1) selectDeck(0);
+  window.allDecks = data; // Set the global variable
+  window.renderDecksList(); // Call the global function you pasted at the bottom
+  if(window.allDecks.length > 0 && currentDeckIndex === -1) selectDeck(0);
 }
 
     // --- DESTRUCTIVE SYSTEM RECORD PURGES (MOVED SECURELY TO DASHBOARD VIEW) ---
